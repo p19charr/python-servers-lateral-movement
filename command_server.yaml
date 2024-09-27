@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: command-server-no-render
+  namespace: custom-namespace
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: command-server-no-render
+  template:
+    metadata:
+      labels:
+        app: command-server-no-render
+    spec:
+      containers:
+      - name: command-server-no-render
+        image: docker.io/library/python:3.9-alpine
+        command: ["python3", "/app/command_server.py"]
+        volumeMounts:
+        - name: script-volume
+          mountPath: /app
+      volumes:
+      - name: script-volume
+        configMap:
+          name: command-server-no-render-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: command-server-no-render-config
+  namespace: custom-namespace
+data:
+  command_server.py: |
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    import subprocess
+    import json
+    from urllib.parse import urlparse, parse_qs
+
+    class CommandHTTPRequestHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            query_components = parse_qs(urlparse(self.path).query)
+            if 'command' in query_components:
+                command = query_components['command'][0]
+                try:
+                    output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT, text=True)
+                    response = {"command": command, "output": output}
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps(response).encode())
+                except subprocess.CalledProcessError as e:
+                    self.send_response(500)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    response = {"error": "Command execution failed", "command": command, "output": e.output}
+                    self.wfile.write(json.dumps(response).encode())
+            else:
+                self.send_response(400)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {"error": "Missing 'command' parameter"}
+                self.wfile.write(json.dumps(response).encode())
+
+    server_address = ('', 8080)
+    httpd = HTTPServer(server_address, CommandHTTPRequestHandler)
+    print("Server started on port 8080...")
+    httpd.serve_forever()
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: command-server-no-render-service
+  namespace: custom-namespace
+spec:
+  type: ClusterIP
+  selector:
+    app: command-server-no-render
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080

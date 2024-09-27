@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: query-server
+  namespace: custom-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: query-server
+  template:
+    metadata:
+      labels:
+        app: query-server
+    spec:
+      containers:
+      - name: query-server
+        image: docker.io/library/python:3.9-alpine
+        command: ["python3", "/app/bdd_server.py"]
+        volumeMounts:
+        - name: script-volume
+          mountPath: /app
+      volumes:
+      - name: script-volume
+        configMap:
+          name: query-server-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: query-server-config
+  namespace: custom-namespace
+data:
+  bdd_server.py: |
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    import json
+    from urllib.parse import urlparse, parse_qs
+
+    DESIRED_STRING = "openAI"
+
+    class MyHTTPRequestHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            query_components = parse_qs(urlparse(self.path).query)
+            if 'query' in query_components and query_components['query'][0] == DESIRED_STRING:
+                client_ip = self.client_address[0]
+                response = {"client_ip": client_ip}
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(response).encode())
+            else:
+                self.send_response(400)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {"error": "Invalid query string"}
+                self.wfile.write(json.dumps(response).encode())
+
+    server_address = ('', 8080)
+    httpd = HTTPServer(server_address, MyHTTPRequestHandler)
+    print("Server started on port 8080...")
+    httpd.serve_forever()
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: query-server-service
+  namespace: custom-namespace
+spec:
+  type: ClusterIP
+  selector:
+    app: query-server
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
