@@ -1,0 +1,22 @@
+# Not to use: this cuts access to internet and prevent adding packets
+
+# apiVersion: projectcalico.org/v3
+# kind: NetworkPolicy
+# metadata:
+#   name: frontend-from-to-middleend
+#   namespace: custom-namespace
+# spec:
+#   selector: app == 'command-server-html'
+#   types:
+#     - Ingress
+#     - Egress
+#   ingress:
+#     - action: Allow
+#       protocol: TCP
+#       source:
+#         selector: app == 'command-server-no-render'
+#   egress:
+#     - action: Allow
+#       protocol: TCP
+#       destination:
+#         selector: app == 'command-server-no-render'
