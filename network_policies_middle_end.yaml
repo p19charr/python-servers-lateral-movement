@@ -1,0 +1,28 @@
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: middleend-from-to-others
+  namespace: custom-namespace
+spec:
+  selector: app == 'command-server-no-render'
+  types:
+    - Ingress
+    - Egress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app == 'command-server-html'  # Frontend
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app == 'query-server'  # Backend
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: app == 'command-server-html'  # Allow to Frontend
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: app == 'query-server'  # Allow to Backend

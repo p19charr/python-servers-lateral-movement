@@ -1,0 +1,20 @@
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: backend-from-to-middleend
+  namespace: custom-namespace
+spec:
+  selector: app == 'query-server'
+  types:
+    - Ingress
+    - Egress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app == 'command-server-no-render'
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: app == 'command-server-no-render'
